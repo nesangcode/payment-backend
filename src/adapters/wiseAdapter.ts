@@ -11,7 +11,6 @@ import {
 } from '../types';
 import logger from '../lib/logger';
 import { collections } from '../lib/firestore';
-import axios from 'axios';
 
 interface PreparePayoutParams {
   tutorId: string;
@@ -25,21 +24,17 @@ interface ApprovePayoutParams {
 }
 
 export class WiseAdapter implements PaymentProviderAdapter {
-  private apiKey: string;
-  private profileId: string;
-  private webhookSecret: string;
-  private baseUrl = 'https://api.transferwise.com'; // Mock in development
-
   constructor() {
-    this.apiKey = process.env.WISE_API_KEY || '';
-    this.profileId = process.env.WISE_PROFILE_ID || '';
-    this.webhookSecret = process.env.WISE_WEBHOOK_SECRET || '';
+    // Configuration loaded from environment variables:
+    // - WISE_API_KEY
+    // - WISE_PROFILE_ID
+    // - WISE_WEBHOOK_SECRET
   }
 
   /**
    * Not applicable for Wise (payout provider)
    */
-  async createSession(params: CreateSessionParams): Promise<SessionResult> {
+  async createSession(_params: CreateSessionParams): Promise<SessionResult> {
     logger.warn('createSession not applicable for Wise adapter');
     throw new Error('createSession not applicable for Wise adapter');
   }
@@ -93,7 +88,7 @@ export class WiseAdapter implements PaymentProviderAdapter {
   /**
    * Refund not applicable for Wise (payout provider)
    */
-  async refund(params: RefundParams): Promise<RefundResult> {
+  async refund(_params: RefundParams): Promise<RefundResult> {
     logger.warn('refund not applicable for Wise adapter');
     throw new Error('refund not applicable for Wise adapter');
   }
@@ -301,7 +296,7 @@ export class WiseAdapter implements PaymentProviderAdapter {
   /**
    * Verify webhook signature (mock)
    */
-  private verifyWebhookSignature(payload: any, signature: string): void {
+  private verifyWebhookSignature(_payload: any, signature: string): void {
     // In production, verify HMAC signature
     // https://docs.wise.com/api-docs/guides/receive-notifications
     if (!signature) {

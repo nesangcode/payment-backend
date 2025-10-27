@@ -28,7 +28,7 @@ initializeFirestore();
 app.use(
   '/webhooks/stripe',
   express.raw({ type: 'application/json' }),
-  (req: any, res, next) => {
+  (req: any, _res, next) => {
     req.rawBody = req.body;
     next();
   }
@@ -39,7 +39,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Request logging middleware
-app.use((req: Request, res: Response, next: NextFunction) => {
+app.use((req: Request, _res: Response, next: NextFunction) => {
   logger.info({
     method: req.method,
     path: req.path,
@@ -49,9 +49,10 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 // Health check endpoint
-app.get('/health', (req: Request, res: Response) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({
-    status: 'healthy',
+    status: 'ok',
+    healthy: true,
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
   });
@@ -61,11 +62,9 @@ app.get('/health', (req: Request, res: Response) => {
 app.use('/v1/stripe', stripeRoutes);
 app.use('/v1/iap', iapRoutes);
 app.use('/v1/payouts', wiseRoutes);
-app.use('/v1/subscriptions', adminRoutes);
-app.use('/v1/invoices', adminRoutes);
-app.use('/v1/entitlements', adminRoutes);
-app.use('/v1/ledger', adminRoutes);
-app.use('/v1/users', adminRoutes);
+
+// Admin routes - mounted at multiple paths for different access patterns
+app.use('/v1', adminRoutes);  // For generic /:id endpoints
 
 // Webhook Routes
 app.use('/webhooks', stripeWebhook);
@@ -82,7 +81,7 @@ app.use((req: Request, res: Response) => {
 });
 
 // Error handling middleware
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   logger.error({ error: err.message, stack: err.stack }, 'Unhandled error');
   res.status(500).json({
     error: 'Internal Server Error',

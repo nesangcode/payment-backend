@@ -32,7 +32,7 @@ export class StripeAdapter implements PaymentProviderAdapter {
    */
   async createSession(params: CreateSessionParams): Promise<SessionResult> {
     try {
-      const { uid, planId, currency = 'USD', metadata = {} } = params;
+      const { uid, planId, metadata = {} } = params;
 
       // Get or create Stripe customer
       const customer = await this.getOrCreateCustomer(uid);
@@ -59,6 +59,29 @@ export class StripeAdapter implements PaymentProviderAdapter {
       logger.info(
         { uid, subscriptionId: subscription.id },
         'Stripe subscription created'
+      );
+
+      // Save subscription to Firestore immediately (also saved via webhook later)
+      await collections.subscriptions().doc(subscription.id).set({
+        id: subscription.id,
+        uid,
+        provider: 'stripe',
+        planId,
+        status: subscription.status as any,
+        currentPeriodStart: new Date(subscription.current_period_start * 1000),
+        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        metadata: {
+          ...metadata,
+          uid,
+        },
+        createdAt: new Date(subscription.created * 1000),
+        updatedAt: new Date(),
+      });
+
+      logger.info(
+        { uid, subscriptionId: subscription.id },
+        'Subscription saved to Firestore'
       );
 
       return {
@@ -148,7 +171,7 @@ export class StripeAdapter implements PaymentProviderAdapter {
 
       return {
         refundId: refund.id,
-        status: refund.status,
+        status: refund.status || 'unknown',
         amount: refund.amount / 100,
       };
     } catch (error) {

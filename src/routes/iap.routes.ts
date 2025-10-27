@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { AuthRequest, authenticateUser } from '../lib/auth';
 import { idempotencyMiddleware } from '../lib/idempotency';
 import iapAdapter from '../adapters/iapAdapter';
+import subscriptionManager from '../services/subscriptionManager';
 import logger from '../lib/logger';
 import { z } from 'zod';
 
@@ -100,7 +101,7 @@ router.get(
 
       // Get user's IAP subscriptions
       const subscriptions = await subscriptionManager.getUserSubscriptions(uid);
-      const iapSubscriptions = subscriptions.filter((sub) => sub.provider === 'iap');
+      const iapSubscriptions = subscriptions.filter((sub: any) => sub.provider === 'iap');
 
       return res.status(200).json({
         success: true,

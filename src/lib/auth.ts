@@ -60,7 +60,7 @@ export async function authenticateUser(
  */
 export async function optionalAuth(
   req: AuthRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
@@ -117,7 +117,7 @@ export function requireAdmin(
 /**
  * Middleware to verify webhook signature (generic)
  */
-export function verifyWebhookSignature(secret: string) {
+export function verifyWebhookSignature(_secret: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const signature = req.headers['stripe-signature'] || req.headers['x-webhook-signature'];
 
