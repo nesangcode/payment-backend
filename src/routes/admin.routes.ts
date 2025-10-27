@@ -180,12 +180,10 @@ router.get(
 
 /**
  * Get subscription by ID
- * GET /v1/:id
- * 
- * IMPORTANT: This catch-all route must come AFTER specific routes
+ * GET /v1/subscriptions/:id
  */
 router.get(
-  '/:id',
+  '/subscriptions/:id',
   authenticateUser,
   async (req: AuthRequest, res: Response) => {
     try {
@@ -223,11 +221,53 @@ router.get(
 );
 
 /**
+ * Get invoice by ID
+ * GET /v1/invoices/:id
+ */
+router.get(
+  '/invoices/:id',
+  authenticateUser,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const invoiceId = req.params.id;
+
+      const invoice = await invoiceService.getInvoice(invoiceId);
+
+      if (!invoice) {
+        return res.status(404).json({
+          error: 'Not Found',
+          message: 'Invoice not found',
+        });
+      }
+
+      // Verify user is authorized
+      if (req.user?.uid !== invoice.uid && req.user?.role !== 'admin') {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: 'Cannot view invoice for another user',
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        invoice,
+      });
+    } catch (error: any) {
+      logger.error({ error: error.message }, 'Failed to get invoice');
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: error.message,
+      });
+    }
+  }
+);
+
+/**
  * Cancel subscription
  * POST /v1/subscriptions/:id/cancel
  */
 router.post(
-  '/:id/cancel',
+  '/subscriptions/:id/cancel',
   authenticateUser,
   async (req: AuthRequest, res: Response) => {
     try {
