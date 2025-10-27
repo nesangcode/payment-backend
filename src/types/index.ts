@@ -183,6 +183,10 @@ export interface SessionResult {
   clientSecret?: string;
   hostedUrl?: string;
   subscriptionId?: string;
+  currency?: string;
+  subtotal?: number;
+  tax?: number;
+  total?: number;
 }
 
 export interface WebhookResult {

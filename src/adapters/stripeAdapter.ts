@@ -32,13 +32,33 @@ export class StripeAdapter implements PaymentProviderAdapter {
    */
   async createSession(params: CreateSessionParams): Promise<SessionResult> {
     try {
-      const { uid, planId, metadata = {} } = params;
+      const { uid, planId, currency, metadata = {} } = params;
 
       // Get or create Stripe customer
       const customer = await this.getOrCreateCustomer(uid);
 
-      // Create subscription
-      const subscription = await this.stripe.subscriptions.create({
+      // Fetch the Price to determine its currency
+      const price = await this.stripe.prices.retrieve(planId);
+      const priceCurrency = price.currency.toUpperCase();
+
+      // Log if currency parameter is provided but differs from Price currency
+      if (currency && currency.toUpperCase() !== priceCurrency) {
+        logger.warn(
+          { requestedCurrency: currency, actualCurrency: priceCurrency, planId },
+          '⚠️  Currency parameter differs from Price currency. Price currency will be used.'
+        );
+      }
+
+      // Get or create Indonesian tax rate for IDR subscriptions
+      let defaultTaxRates: string[] = [];
+      if (priceCurrency === 'IDR') {
+        const taxRate = await this.getOrCreateIndonesianTaxRate();
+        defaultTaxRates = [taxRate.id];
+        logger.info({ taxRateId: taxRate.id }, 'Applying Indonesian PPN 11% tax to subscription');
+      }
+
+      // Create subscription with tax if applicable
+      const subscriptionParams: any = {
         customer: customer.id,
         items: [{ price: planId }],
         payment_behavior: 'default_incomplete',
@@ -49,16 +69,36 @@ export class StripeAdapter implements PaymentProviderAdapter {
         expand: ['latest_invoice.payment_intent'],
         metadata: {
           uid,
+          currency: priceCurrency,
           ...metadata,
         },
-      });
+      };
+
+      // Add tax rates if applicable
+      if (defaultTaxRates.length > 0) {
+        subscriptionParams.default_tax_rates = defaultTaxRates;
+      }
+
+      const subscription = await this.stripe.subscriptions.create(subscriptionParams);
 
       const invoice = subscription.latest_invoice as Stripe.Invoice;
       const paymentIntent = invoice?.payment_intent as Stripe.PaymentIntent;
 
+      // Calculate tax information
+      const invoiceAmount = invoice?.amount_due ? invoice.amount_due / 100 : 0;
+      const invoiceTax = invoice?.tax ? invoice.tax / 100 : 0;
+      const invoiceSubtotal = invoice?.subtotal ? invoice.subtotal / 100 : 0;
+
       logger.info(
-        { uid, subscriptionId: subscription.id },
-        'Stripe subscription created'
+        { 
+          uid, 
+          subscriptionId: subscription.id,
+          currency: priceCurrency,
+          subtotal: invoiceSubtotal,
+          tax: invoiceTax,
+          total: invoiceAmount,
+        },
+        'Stripe subscription created with tax'
       );
 
       // Save subscription to Firestore immediately (also saved via webhook later)
@@ -67,13 +107,17 @@ export class StripeAdapter implements PaymentProviderAdapter {
         uid,
         provider: 'stripe',
         planId,
+        currency: priceCurrency,
         status: subscription.status as any,
         currentPeriodStart: new Date(subscription.current_period_start * 1000),
         currentPeriodEnd: new Date(subscription.current_period_end * 1000),
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        tax: invoiceTax,
         metadata: {
           ...metadata,
           uid,
+          currency: priceCurrency,
+          hasTax: invoiceTax > 0,
         },
         createdAt: new Date(subscription.created * 1000),
         updatedAt: new Date(),
@@ -88,6 +132,10 @@ export class StripeAdapter implements PaymentProviderAdapter {
         subscriptionId: subscription.id,
         clientSecret: paymentIntent?.client_secret || undefined,
         sessionId: subscription.id,
+        currency: priceCurrency,
+        subtotal: invoiceSubtotal,
+        tax: invoiceTax,
+        total: invoiceAmount,
       };
     } catch (error) {
       logger.error({ error, params }, 'Failed to create Stripe session');
@@ -100,18 +148,46 @@ export class StripeAdapter implements PaymentProviderAdapter {
    */
   async handleWebhook(payload: any, signature?: string): Promise<WebhookResult> {
     try {
-      if (!signature) {
-        throw new Error('Webhook signature is required');
+      const skipSignatureVerification = process.env.SKIP_STRIPE_SIGNATURE_VERIFICATION === 'true';
+      let event: any;
+
+      if (skipSignatureVerification) {
+        // Testing mode: parse payload directly without signature verification
+        logger.warn('⚠️  Stripe signature verification SKIPPED (testing mode)');
+        
+        // Handle Buffer, string, or already-parsed object
+        if (Buffer.isBuffer(payload)) {
+          event = JSON.parse(payload.toString('utf-8'));
+        } else if (typeof payload === 'string') {
+          event = JSON.parse(payload);
+        } else {
+          event = payload;
+        }
+      } else {
+        if (!signature) {
+          throw new Error('Webhook signature is required');
+        }
+
+        // Production mode: verify webhook signature
+        event = this.stripe.webhooks.constructEvent(
+          payload,
+          signature,
+          this.webhookSecret
+        );
       }
 
-      // Verify webhook signature
-      const event = this.stripe.webhooks.constructEvent(
-        payload,
-        signature,
-        this.webhookSecret
-      );
+      logger.info({ 
+        eventType: event.type, 
+        eventId: event.id,
+        hasType: !!event.type,
+        hasId: !!event.id,
+        eventKeys: Object.keys(event || {}).join(', ')
+      }, 'Stripe webhook received');
 
-      logger.info({ eventType: event.type, eventId: event.id }, 'Stripe webhook received');
+      // DEBUG: Log full event structure if type/id missing
+      if (!event.type || !event.id) {
+        logger.error({ event: JSON.stringify(event).substring(0, 500) }, '❌ Event missing type or id!');
+      }
 
       // Process event based on type
       let processed = true;
@@ -223,9 +299,76 @@ export class StripeAdapter implements PaymentProviderAdapter {
     return customer;
   }
 
+  /**
+   * Get or create Indonesian PPN tax rate (11%)
+   * Caches the tax rate ID to avoid creating duplicates
+   */
+  private indonesianTaxRateId: string | null = null;
+
+  private async getOrCreateIndonesianTaxRate(): Promise<Stripe.TaxRate> {
+    // Return cached tax rate if available
+    if (this.indonesianTaxRateId) {
+      try {
+        return await this.stripe.taxRates.retrieve(this.indonesianTaxRateId);
+      } catch (error) {
+        logger.warn('Cached tax rate not found, will create new one');
+        this.indonesianTaxRateId = null;
+      }
+    }
+
+    // Get PPN rate from environment (default 11%)
+    const ppnRate = parseFloat(process.env.INDONESIA_PPN_RATE || '0.11');
+    const ppnPercentage = ppnRate * 100; // Convert to percentage
+
+    // Check if tax rate already exists
+    const existingRates = await this.stripe.taxRates.list({
+      active: true,
+      limit: 100,
+    });
+
+    const existingPPNRate = existingRates.data.find(
+      (rate) =>
+        rate.display_name === 'Indonesian PPN' &&
+        rate.percentage === ppnPercentage &&
+        rate.jurisdiction === 'ID'
+    );
+
+    if (existingPPNRate) {
+      this.indonesianTaxRateId = existingPPNRate.id;
+      logger.info({ taxRateId: existingPPNRate.id }, 'Using existing Indonesian PPN tax rate');
+      return existingPPNRate;
+    }
+
+    // Create new tax rate
+    const taxRate = await this.stripe.taxRates.create({
+      display_name: 'Indonesian PPN',
+      description: 'Indonesian Value Added Tax (PPN)',
+      jurisdiction: 'ID',
+      percentage: ppnPercentage,
+      inclusive: false, // Tax is added on top of the price
+      active: true,
+    });
+
+    this.indonesianTaxRateId = taxRate.id;
+    logger.info(
+      { taxRateId: taxRate.id, percentage: ppnPercentage },
+      'Created new Indonesian PPN tax rate'
+    );
+
+    return taxRate;
+  }
+
   private async handleInvoicePaymentSucceeded(event: Stripe.Event): Promise<void> {
     const invoice = event.data.object as Stripe.Invoice;
     const uid = invoice.metadata?.uid || invoice.customer as string;
+
+    logger.info({ 
+      eventId: event.id,
+      invoiceId: invoice.id,
+      uid,
+      customer: invoice.customer,
+      metadata: invoice.metadata,
+    }, '🔍 DEBUG: Processing invoice.payment_succeeded');
 
     // Create/update invoice record
     await collections.invoices().doc(invoice.id).set({

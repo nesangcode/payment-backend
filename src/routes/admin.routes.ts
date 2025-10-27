@@ -30,12 +30,12 @@ router.get(
         });
       }
 
-      let query = collections.ledger().orderBy('timestamp', 'desc').limit(limit);
+      let query = collections.ledger().orderBy('ts', 'desc').limit(limit);
 
       if (uid) {
         query = collections.ledger()
           .where('uid', '==', uid)
-          .orderBy('timestamp', 'desc')
+          .orderBy('ts', 'desc')
           .limit(limit) as any;
       }
 

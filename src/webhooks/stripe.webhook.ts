@@ -16,8 +16,9 @@ const router = Router();
 router.post('/stripe', async (req: Request, res: Response) => {
   try {
     const signature = req.headers['stripe-signature'] as string;
+    const skipSignatureVerification = process.env.SKIP_STRIPE_SIGNATURE_VERIFICATION === 'true';
 
-    if (!signature) {
+    if (!signature && !skipSignatureVerification) {
       logger.warn('Stripe webhook signature missing');
       return res.status(400).json({
         error: 'Bad Request',
@@ -28,7 +29,7 @@ router.post('/stripe', async (req: Request, res: Response) => {
     // Get raw body (must be preserved by Express middleware)
     const rawBody = (req as any).rawBody || JSON.stringify(req.body);
 
-    // Handle webhook through adapter
+    // Handle webhook through adapter (signature can be undefined if skipping verification)
     const result = await stripeAdapter.handleWebhook(rawBody, signature);
 
     // Check for deduplication

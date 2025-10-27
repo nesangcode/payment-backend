@@ -11,6 +11,8 @@ import {
 } from '../types';
 import logger from '../lib/logger';
 import { collections } from '../lib/firestore';
+import subscriptionManager from '../services/subscriptionManager';
+import invoiceService from '../services/invoiceService';
 
 export class IAPAdapter implements PaymentProviderAdapter {
   constructor() {
@@ -147,40 +149,36 @@ export class IAPAdapter implements PaymentProviderAdapter {
   ): Promise<void> {
     const subscriptionId = validation.originalTransactionId || validation.transactionId || '';
 
-    // Create subscription record
-    await collections.subscriptions().doc(subscriptionId).set({
+    // Create subscription using SubscriptionManager
+    await subscriptionManager.createSubscription({
       id: subscriptionId,
       uid,
       provider: 'iap',
-      planId: validation.productId || 'unknown',
+      planId: validation.productId || 'com.edtech.group.premium',
       status: 'active',
       currentPeriodStart: validation.purchaseDate || new Date(),
-      currentPeriodEnd: validation.expiresDate || new Date(),
+      currentPeriodEnd: validation.expiresDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       metadata: { platform, transactionId: validation.transactionId },
-      createdAt: new Date(),
-      updatedAt: new Date(),
     });
 
-    // Create invoice
-    const invoiceId = `iap_${subscriptionId}_${Date.now()}`;
-    await collections.invoices().doc(invoiceId).set({
-      id: invoiceId,
+    // Create invoice using InvoiceService
+    const invoice = await invoiceService.createInvoice({
       uid,
       provider: 'iap',
       amount: 9.99, // Mock amount
       currency: 'USD',
-      status: 'paid',
-      subscriptionId,
       lines: [
         {
           description: 'Group & Recording Access',
           amount: 9.99,
-          planId: validation.productId,
+          planId: validation.productId || 'com.edtech.group.premium',
         },
       ],
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      subscriptionId,
     });
+
+    // Mark invoice as paid
+    await invoiceService.markAsPaid(invoice.id);
 
     // Create payment record
     const paymentId = `iap_payment_${Date.now()}`;
@@ -192,30 +190,16 @@ export class IAPAdapter implements PaymentProviderAdapter {
       currency: 'USD',
       status: 'succeeded',
       intentId: validation.transactionId,
-      invoiceId,
+      invoiceId: invoice.id,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
-    // Update entitlements (IAP is for groups/recordings)
-    await collections.entitlements().doc(uid).set(
-      {
-        uid,
-        features: {
-          groupReplay: true,
-          oneToOne: false,
-          androidNoReplay: platform === 'android', // Android policy flag
-        },
-        updatedAt: new Date(),
-      },
-      { merge: true }
-    );
-
-    // Write to ledger
+    // Write payment success to ledger
     await collections.ledger().add({
       ts: new Date(),
       type: 'payment.succeeded',
-      refId: invoiceId,
+      refId: invoice.id,
       provider: 'iap',
       amount: 9.99,
       currency: 'USD',
@@ -224,6 +208,7 @@ export class IAPAdapter implements PaymentProviderAdapter {
         platform,
         transactionId: validation.transactionId,
         productId: validation.productId,
+        paymentId,
       },
     });
 
@@ -237,7 +222,7 @@ export class IAPAdapter implements PaymentProviderAdapter {
       { merge: true }
     );
 
-    logger.info({ uid, subscriptionId, platform }, 'IAP subscription saved');
+    logger.info({ uid, subscriptionId, platform, invoiceId: invoice.id }, 'IAP subscription saved');
   }
 
   /**
@@ -332,29 +317,291 @@ export class IAPAdapter implements PaymentProviderAdapter {
     };
   }
 
-  private async handleIAPRenewal(_payload: any, platform: Platform): Promise<void> {
-    logger.info({ platform }, 'IAP renewal (MOCK)');
-    // Mock implementation - extract subscription ID and update
+  private async handleIAPRenewal(payload: any, platform: Platform): Promise<void> {
+    logger.info({ platform, payload }, 'IAP renewal (MOCK)');
+    
+    // Extract subscription info from payload (MOCK)
+    const subscriptionId = this.extractSubscriptionId(payload, platform);
+    
+    if (!subscriptionId) {
+      logger.warn({ platform }, 'Could not extract subscription ID from renewal payload');
+      return;
+    }
+
+    // Get subscription
+    const subDoc = await collections.subscriptions().doc(subscriptionId).get();
+    if (!subDoc.exists) {
+      logger.warn({ subscriptionId }, 'Subscription not found for renewal');
+      return;
+    }
+
+    const subscription = subDoc.data() as any;
+    if (!subscription) {
+      logger.warn({ subscriptionId }, 'Subscription data is empty');
+      return;
+    }
+
+    const newPeriodStart = subscription.currentPeriodEnd || new Date();
+    const newPeriodEnd = new Date(newPeriodStart);
+    newPeriodEnd.setDate(newPeriodEnd.getDate() + 30); // 30 days renewal
+
+    // Update subscription
+    await collections.subscriptions().doc(subscriptionId).update({
+      status: 'active',
+      currentPeriodStart: newPeriodStart,
+      currentPeriodEnd: newPeriodEnd,
+      graceUntil: null,
+      updatedAt: new Date(),
+    });
+
+    // Create invoice for the renewal
+    const invoiceId = `iap_renewal_${subscriptionId}_${Date.now()}`;
+    await collections.invoices().doc(invoiceId).set({
+      id: invoiceId,
+      uid: subscription.uid,
+      provider: 'iap',
+      amount: 9.99,
+      currency: 'USD',
+      status: 'paid',
+      subscriptionId,
+      lines: [
+        {
+          description: 'Subscription Renewal - Group & Recording Access',
+          amount: 9.99,
+        },
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    // Write to ledger
+    await collections.ledger().add({
+      ts: new Date(),
+      type: 'subscription.renewed',
+      refId: subscriptionId,
+      provider: 'iap',
+      amount: 9.99,
+      currency: 'USD',
+      uid: subscription.uid,
+      meta: { subscriptionId, platform, invoiceId },
+    });
+
+    logger.info({ subscriptionId, platform }, 'IAP subscription renewed');
   }
 
-  private async handleIAPRenewalFailure(_payload: any, platform: Platform): Promise<void> {
-    logger.warn({ platform }, 'IAP renewal failure (MOCK)');
-    // Mock implementation - set subscription to past_due
+  private async handleIAPRenewalFailure(payload: any, platform: Platform): Promise<void> {
+    logger.warn({ platform, payload }, 'IAP renewal failure (MOCK)');
+    
+    const subscriptionId = this.extractSubscriptionId(payload, platform);
+    
+    if (!subscriptionId) {
+      logger.warn({ platform }, 'Could not extract subscription ID from renewal failure payload');
+      return;
+    }
+
+    // Get subscription
+    const subDoc = await collections.subscriptions().doc(subscriptionId).get();
+    if (!subDoc.exists) {
+      logger.warn({ subscriptionId }, 'Subscription not found for renewal failure');
+      return;
+    }
+
+    const subscription = subDoc.data() as any;
+    if (!subscription) {
+      logger.warn({ subscriptionId }, 'Subscription data is empty');
+      return;
+    }
+
+    const graceUntil = new Date();
+    graceUntil.setDate(graceUntil.getDate() + parseInt(process.env.GRACE_DAYS || '7', 10));
+
+    // Set subscription to past_due with grace period
+    await collections.subscriptions().doc(subscriptionId).update({
+      status: 'past_due',
+      graceUntil,
+      updatedAt: new Date(),
+    });
+
+    // Write to ledger
+    await collections.ledger().add({
+      ts: new Date(),
+      type: 'payment.failed',
+      refId: subscriptionId,
+      provider: 'iap',
+      amount: 0,
+      currency: 'USD',
+      uid: subscription.uid,
+      meta: { subscriptionId, platform, graceUntil },
+    });
+
+    logger.warn({ subscriptionId, platform, graceUntil }, 'IAP subscription set to past_due with grace period');
   }
 
-  private async handleIAPRefund(_payload: any, platform: Platform): Promise<void> {
-    logger.warn({ platform }, 'IAP refund (MOCK)');
-    // Mock implementation - revoke entitlements and log refund
+  private async handleIAPRefund(payload: any, platform: Platform): Promise<void> {
+    logger.warn({ platform, payload }, 'IAP refund (MOCK)');
+    
+    const subscriptionId = this.extractSubscriptionId(payload, platform);
+    
+    if (!subscriptionId) {
+      logger.warn({ platform }, 'Could not extract subscription ID from refund payload');
+      return;
+    }
+
+    // Get subscription
+    const subDoc = await collections.subscriptions().doc(subscriptionId).get();
+    if (!subDoc.exists) {
+      logger.warn({ subscriptionId }, 'Subscription not found for refund');
+      return;
+    }
+
+    const subscription = subDoc.data() as any;
+    if (!subscription) {
+      logger.warn({ subscriptionId }, 'Subscription data is empty');
+      return;
+    }
+
+    // Cancel subscription immediately
+    await collections.subscriptions().doc(subscriptionId).update({
+      status: 'canceled',
+      currentPeriodEnd: new Date(),
+      updatedAt: new Date(),
+    });
+
+    // Revoke entitlements
+    await collections.entitlements().doc(subscription.uid).set(
+      {
+        uid: subscription.uid,
+        features: {
+          groupReplay: false,
+          oneToOne: false,
+          androidNoReplay: false,
+        },
+        updatedAt: new Date(),
+      },
+      { merge: true }
+    );
+
+    // Write refund to ledger
+    await collections.ledger().add({
+      ts: new Date(),
+      type: 'refund.succeeded',
+      refId: subscriptionId,
+      provider: 'iap',
+      amount: 9.99,
+      currency: 'USD',
+      uid: subscription.uid,
+      meta: { subscriptionId, platform, reason: 'refund' },
+    });
+
+    logger.warn({ subscriptionId, platform }, 'IAP subscription refunded and entitlements revoked');
   }
 
-  private async handleIAPCancellation(_payload: any, platform: Platform): Promise<void> {
-    logger.info({ platform }, 'IAP cancellation (MOCK)');
-    // Mock implementation - set cancelAtPeriodEnd
+  private async handleIAPCancellation(payload: any, platform: Platform): Promise<void> {
+    try {
+      logger.info({ platform, payload }, 'IAP cancellation (MOCK)');
+      
+      const subscriptionId = this.extractSubscriptionId(payload, platform);
+      
+      if (!subscriptionId) {
+        logger.warn({ platform }, 'Could not extract subscription ID from cancellation payload');
+        return;
+      }
+
+      // Get subscription
+      const subDoc = await collections.subscriptions().doc(subscriptionId).get();
+      if (!subDoc.exists) {
+        logger.warn({ subscriptionId }, 'Subscription not found for cancellation - this is expected for test webhooks');
+        return;
+      }
+
+      const subscription = subDoc.data() as any;
+      if (!subscription) {
+        logger.warn({ subscriptionId }, 'Subscription data is empty');
+        return;
+      }
+
+      // Set to cancel at period end (user retains access until period ends)
+      await collections.subscriptions().doc(subscriptionId).update({
+        cancelAtPeriodEnd: true,
+        updatedAt: new Date(),
+      });
+
+      // Write to ledger
+      await collections.ledger().add({
+        ts: new Date(),
+        type: 'subscription.canceled',
+        refId: subscriptionId,
+        provider: 'iap',
+        amount: 0,
+        currency: 'USD',
+        uid: subscription.uid,
+        meta: { subscriptionId, platform, cancelAtPeriodEnd: true },
+      });
+
+      logger.info({ subscriptionId, platform }, 'IAP subscription set to cancel at period end');
+    } catch (error) {
+      logger.error({ error, platform }, 'Error in handleIAPCancellation - continuing anyway');
+      // Don't throw - let webhook continue
+    }
   }
 
-  private async handleIAPPause(_payload: any, platform: Platform): Promise<void> {
-    logger.info({ platform }, 'IAP pause (MOCK)');
-    // Mock implementation - set status to paused
+  private async handleIAPPause(payload: any, platform: Platform): Promise<void> {
+    logger.info({ platform, payload }, 'IAP pause (MOCK)');
+    
+    const subscriptionId = this.extractSubscriptionId(payload, platform);
+    
+    if (!subscriptionId) {
+      logger.warn({ platform }, 'Could not extract subscription ID from pause payload');
+      return;
+    }
+
+    // Get subscription
+    const subDoc = await collections.subscriptions().doc(subscriptionId).get();
+    if (!subDoc.exists) {
+      logger.warn({ subscriptionId }, 'Subscription not found for pause');
+      return;
+    }
+
+    const subscription = subDoc.data() as any;
+    if (!subscription) {
+      logger.warn({ subscriptionId }, 'Subscription data is empty');
+      return;
+    }
+
+    // Set subscription to paused
+    await collections.subscriptions().doc(subscriptionId).update({
+      status: 'paused',
+      updatedAt: new Date(),
+    });
+
+    // Temporarily revoke entitlements
+    await collections.entitlements().doc(subscription.uid).set(
+      {
+        uid: subscription.uid,
+        features: {
+          groupReplay: false,
+          oneToOne: false,
+          androidNoReplay: false,
+        },
+        updatedAt: new Date(),
+      },
+      { merge: true }
+    );
+
+    logger.info({ subscriptionId, platform }, 'IAP subscription paused');
+  }
+
+  /**
+   * Extract subscription ID from webhook payload (MOCK)
+   */
+  private extractSubscriptionId(payload: any, platform: Platform): string | null {
+    // MOCK extraction - in production, parse actual payload structure
+    if (platform === 'ios') {
+      return payload.original_transaction_id || payload.transaction_id || null;
+    } else if (platform === 'android') {
+      return payload.subscriptionNotification?.purchaseToken || payload.purchaseToken || null;
+    }
+    return null;
   }
 }
 
