@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 yarn.lock
 
 # Build outputs
@@ -40,3 +39,9 @@ coverage/
 .cache/
 temp/
 tmp/
+
+# Testing/Debug utilities
+checkTokenUid.js
+getNewToken.js
+setAdminRole.js
+checkLedger.js

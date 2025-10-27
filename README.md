@@ -685,6 +685,16 @@ crontab -e
 - **TazaPay**: Stub only, not implemented
 - **Tax Calculation**: Simple percentage-based (use Stripe Tax in production)
 
+### Testing Status
+
+⚠️ **Important**: The following payment providers have NOT been tested with real production data and use mock implementations for testing:
+- **Google Play IAP**: Mock validation only, requires real Google Play Console integration for production
+- **Apple App Store IAP**: Mock validation only, requires real App Store Server API integration for production
+- **Wise**: Mock API calls only, requires real Wise Business API integration for production
+- **TazaPay**: Stub implementation only, not tested
+
+**Only Stripe has been tested** with real webhooks and API calls using test mode credentials.
+
 ### Production Recommendations
 
 1. Use Stripe Tax API for accurate tax calculation

@@ -1,0 +1,469 @@
+{
+  "info": {
+    "name": "EdTech Webhook API - Required Endpoints",
+    "description": "Minimal collection covering all required API endpoints per specification",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "1"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Stripe - Cards for 1-to-1",
+      "item": [
+        {
+          "name": "Create Subscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"{{user_id}}\",\n  \"planId\": \"{{stripe_plan_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/stripe/subscriptions",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "stripe", "subscriptions"]
+            },
+            "description": "Creates customer if needed, creates subscription session (returns clientSecret or hosted page URL)"
+          },
+          "response": []
+        },
+        {
+          "name": "Change Payment Method",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"{{user_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/stripe/change-payment-method",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "stripe", "change-payment-method"]
+            },
+            "description": "Returns setup intent secret"
+          },
+          "response": []
+        },
+        {
+          "name": "Stripe Webhook",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "stripe-signature",
+                "value": "{{stripe_webhook_signature}}",
+                "description": "Webhook signature - DISABLE if using SKIP_STRIPE_SIGNATURE_VERIFICATION=true",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"evt_{{$randomUUID}}\",\n  \"type\": \"payment_intent.succeeded\",\n  \"data\": {\n    \"object\": {\n      \"id\": \"pi_{{$randomAlphaNumeric}}\",\n      \"amount\": 999,\n      \"currency\": \"usd\",\n      \"status\": \"succeeded\",\n      \"metadata\": {\n        \"uid\": \"{{user_id}}\"\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/stripe",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "stripe"]
+            },
+            "description": "Verify signature, upsert invoices/payments/subscriptions, write ledger, toggle entitlements, idempotent"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "IAP - Groups/Recordings",
+      "item": [
+        {
+          "name": "Validate Receipt (iOS)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"{{user_id}}\",\n  \"platform\": \"ios\",\n  \"receipt\": \"{{apple_receipt}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/iap/validate",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "iap", "validate"]
+            },
+            "description": "Server-side verify (mock), update subscription/invoice, write ledger, toggle entitlements"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate Receipt (Android)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"{{user_id}}\",\n  \"platform\": \"android\",\n  \"receipt\": \"{{google_receipt}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/iap/validate",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "iap", "validate"]
+            },
+            "description": "Server-side verify (mock), update subscription/invoice, write ledger, toggle entitlements"
+          },
+          "response": []
+        },
+        {
+          "name": "Apple App Store Webhook",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notification_type\": \"DID_RENEW\",\n  \"transaction_id\": \"apple_{{$timestamp}}\",\n  \"original_transaction_id\": \"apple_orig_{{$timestamp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/appstore",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "appstore"]
+            },
+            "description": "Renewals, refunds, grace handling, idempotent"
+          },
+          "response": []
+        },
+        {
+          "name": "Google Play Webhook",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subscriptionNotification\": {\n    \"notificationType\": 2,\n    \"purchaseToken\": \"google_token_{{$timestamp}}\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/play",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "play"]
+            },
+            "description": "Renewals, refunds, grace handling, idempotent"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Wise - Tutor Payouts",
+      "item": [
+        {
+          "name": "Prepare Payout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tutorId\": \"{{tutor_id}}\",\n  \"amount\": 250.00,\n  \"currency\": \"USD\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/payouts/prepare",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "payouts", "prepare"]
+            },
+            "description": "Create beneficiary (mock), quote (fx+fee), return payoutId with status=queued"
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Payout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payoutId\": \"{{payoutId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/payouts/approve",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "payouts", "approve"]
+            },
+            "description": "Executes transfer (mock), status=processing"
+          },
+          "response": []
+        },
+        {
+          "name": "Wise Webhook - Payout Paid",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "mock_signature"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"data\": {\n    \"resource\": {\n      \"id\": \"transfer_{{$timestamp}}\"\n    },\n    \"current_state\": \"outgoing_payment_sent\",\n    \"previous_state\": \"processing\",\n    \"occurred_at\": \"{{$isoTimestamp}}\"\n  },\n  \"event_type\": \"transfers#state-change\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/wise",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "wise"]
+            },
+            "description": "Updates payout status (paid|failed), write ledger with fxRate & fee"
+          },
+          "response": []
+        },
+        {
+          "name": "Wise Webhook - Payout Failed",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "mock_signature"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"data\": {\n    \"resource\": {\n      \"id\": \"transfer_{{$timestamp}}\"\n    },\n    \"current_state\": \"bounced_back\",\n    \"previous_state\": \"processing\",\n    \"occurred_at\": \"{{$isoTimestamp}}\"\n  },\n  \"event_type\": \"transfers#state-change\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/wise",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "wise"]
+            },
+            "description": "Updates payout status (paid|failed), write ledger with fxRate & fee"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin/Utility",
+      "item": [
+        {
+          "name": "Get Subscription by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/subscriptions/{{subscriptionId}}",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "subscriptions", "{{subscriptionId}}"]
+            },
+            "description": "Get subscription details by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Invoice by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/invoices/{{invoiceId}}",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "invoices", "{{invoiceId}}"]
+            },
+            "description": "Get invoice details by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Ledger",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/ledger?uid={{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "ledger"],
+              "query": [
+                {
+                  "key": "uid",
+                  "value": "{{user_id}}"
+                }
+              ]
+            },
+            "description": "Get ledger entries for a user"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Subscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"immediate\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/subscriptions/{{subscriptionId}}/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "subscriptions", "{{subscriptionId}}", "cancel"]
+            },
+            "description": "Sets cancelAtPeriodEnd = true"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tutor_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "stripe_plan_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "subscriptionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "invoiceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payoutId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "apple_receipt",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "google_receipt",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

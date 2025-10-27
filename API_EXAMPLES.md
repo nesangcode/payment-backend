@@ -15,20 +15,45 @@ curl -X POST http://localhost:3000/v1/stripe/subscriptions \
   -H "Idempotency-Key: unique-key-123" \
   -d '{
     "uid": "user_123",
-    "planId": "price_1234567890",
-    "currency": "USD"
+    "planId": "price_1234567890"
   }'
 ```
 
-Response:
+**⚠️ Important about Currency:**
+- Currency is **determined by the Price ID**, not the request parameter
+- To use IDR (or any currency), you must create a separate Price in Stripe Dashboard with that currency
+- Then use that Price ID: `"planId": "price_idr_xxx"`
+- The `currency` parameter in the request is optional and informational only
+
+Response (USD - no tax):
 ```json
 {
   "success": true,
   "subscriptionId": "sub_abc123",
   "clientSecret": "pi_xyz_secret_123",
-  "sessionId": "sub_abc123"
+  "sessionId": "sub_abc123",
+  "currency": "USD",
+  "subtotal": 9.99,
+  "tax": 0,
+  "total": 9.99
 }
 ```
+
+Response (IDR - with 11% PPN tax):
+```json
+{
+  "success": true,
+  "subscriptionId": "sub_def456",
+  "clientSecret": "pi_abc_secret_456",
+  "sessionId": "sub_def456",
+  "currency": "IDR",
+  "subtotal": 150000,
+  "tax": 16500,
+  "total": 166500
+}
+```
+
+**Note:** Indonesian PPN (11% tax) is automatically applied to IDR subscriptions.
 
 **Step 2: Simulate webhook (payment succeeded)**
 

@@ -44,6 +44,24 @@
                   "pm.test(\"Response has clientSecret\", function () {",
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData.clientSecret).to.exist;",
+                  "});",
+                  "",
+                  "pm.test(\"Response has currency\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.currency).to.exist;",
+                  "});",
+                  "",
+                  "pm.test(\"Response has price breakdown\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('subtotal');",
+                  "    pm.expect(jsonData).to.have.property('tax');",
+                  "    pm.expect(jsonData).to.have.property('total');",
+                  "    console.log('Price breakdown:', {",
+                  "        currency: jsonData.currency,",
+                  "        subtotal: jsonData.subtotal,",
+                  "        tax: jsonData.tax,",
+                  "        total: jsonData.total",
+                  "    });",
                   "});"
                 ],
                 "type": "text/javascript"
@@ -700,7 +718,8 @@
               {
                 "key": "stripe-signature",
                 "value": "{{stripe_webhook_signature}}",
-                "description": "Webhook signature from Stripe"
+                "description": "Webhook signature from Stripe - DISABLE this if using SKIP_STRIPE_SIGNATURE_VERIFICATION=true",
+                "disabled": true
               }
             ],
             "body": {
@@ -755,7 +774,9 @@
               },
               {
                 "key": "stripe-signature",
-                "value": "{{stripe_webhook_signature}}"
+                "value": "{{stripe_webhook_signature}}",
+                "description": "Webhook signature from Stripe - DISABLE this if using SKIP_STRIPE_SIGNATURE_VERIFICATION=true",
+                "disabled": true
               }
             ],
             "body": {
@@ -1008,6 +1029,134 @@
               "path": ["webhooks", "play"]
             },
             "description": "Simulate Google Play webhook - cancellation"
+          },
+          "response": []
+        },
+        {
+          "name": "Wise Webhook - Payout Completed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Webhook received\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.received).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"Has eventId\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.eventId).to.exist;",
+                  "});",
+                  "",
+                  "pm.test(\"Event type is outgoing_payment_sent\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.eventType).to.equal('outgoing_payment_sent');",
+                  "});",
+                  "",
+                  "pm.test(\"Webhook processed successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.processed).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "mock_signature",
+                "description": "Wise webhook signature (mocked in development)"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"data\": {\n    \"resource\": {\n      \"id\": \"transfer_{{$timestamp}}\",\n      \"profile_id\": 123456,\n      \"account_id\": 789012\n    },\n    \"current_state\": \"outgoing_payment_sent\",\n    \"previous_state\": \"processing\",\n    \"occurred_at\": \"{{$isoTimestamp}}\"\n  },\n  \"subscription_id\": \"sub_{{$randomUUID}}\",\n  \"event_type\": \"transfers#state-change\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/wise",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "wise"]
+            },
+            "description": "Simulate Wise webhook - payout completed (outgoing_payment_sent)"
+          },
+          "response": []
+        },
+        {
+          "name": "Wise Webhook - Payout Failed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Webhook received\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.received).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"Has eventId\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.eventId).to.exist;",
+                  "});",
+                  "",
+                  "pm.test(\"Event type is bounced_back\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.eventType).to.equal('bounced_back');",
+                  "});",
+                  "",
+                  "pm.test(\"Webhook processed successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.processed).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "mock_signature",
+                "description": "Wise webhook signature (mocked in development)"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"data\": {\n    \"resource\": {\n      \"id\": \"transfer_{{$timestamp}}\",\n      \"profile_id\": 123456,\n      \"account_id\": 789012\n    },\n    \"current_state\": \"bounced_back\",\n    \"previous_state\": \"processing\",\n    \"occurred_at\": \"{{$isoTimestamp}}\"\n  },\n  \"subscription_id\": \"sub_{{$randomUUID}}\",\n  \"event_type\": \"transfers#state-change\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/wise",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "wise"]
+            },
+            "description": "Simulate Wise webhook - payout failed (bounced_back)"
           },
           "response": []
         }
