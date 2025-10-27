@@ -175,6 +175,105 @@ curl -X POST http://localhost:3000/v1/iap/validate \
   }'
 ```
 
+**IAP Webhook - App Store (Renewal)**
+
+```bash
+curl -X POST http://localhost:3000/webhooks/appstore \
+  -H "Content-Type: application/json" \
+  -d '{
+    "notification_type": "DID_RENEW",
+    "transaction_id": "apple_1234567890",
+    "original_transaction_id": "apple_orig_1234567890"
+  }'
+```
+
+Response:
+```json
+{
+  "received": true,
+  "eventId": "apple_orig_1234567890",
+  "eventType": "DID_RENEW",
+  "processed": true
+}
+```
+
+**IAP Webhook - App Store (Renewal Failure)**
+
+```bash
+curl -X POST http://localhost:3000/webhooks/appstore \
+  -H "Content-Type: application/json" \
+  -d '{
+    "notification_type": "DID_FAIL_TO_RENEW",
+    "original_transaction_id": "apple_orig_1234567890"
+  }'
+```
+
+**IAP Webhook - App Store (Refund)**
+
+```bash
+curl -X POST http://localhost:3000/webhooks/appstore \
+  -H "Content-Type: application/json" \
+  -d '{
+    "notification_type": "REFUND",
+    "original_transaction_id": "apple_orig_1234567890"
+  }'
+```
+
+**IAP Webhook - Google Play (Renewal)**
+
+```bash
+curl -X POST http://localhost:3000/webhooks/play \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscriptionNotification": {
+      "notificationType": 2,
+      "purchaseToken": "google_purchase_token_123"
+    }
+  }'
+```
+
+**IAP Webhook - Google Play (Cancellation)**
+
+```bash
+curl -X POST http://localhost:3000/webhooks/play \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscriptionNotification": {
+      "notificationType": 3,
+      "purchaseToken": "google_purchase_token_123"
+    }
+  }'
+```
+
+**Check IAP subscription status**
+
+```bash
+curl -X GET http://localhost:3000/v1/iap/subscriptions/user_789 \
+  -H "Authorization: Bearer YOUR_FIREBASE_TOKEN"
+```
+
+Response:
+```json
+{
+  "success": true,
+  "subscriptions": [
+    {
+      "id": "apple_orig_1234567890",
+      "uid": "user_789",
+      "provider": "iap",
+      "status": "active",
+      "planId": "com.edtech.group.premium",
+      "currentPeriodStart": "2024-01-01T00:00:00Z",
+      "currentPeriodEnd": "2024-02-01T00:00:00Z",
+      "metadata": {
+        "platform": "ios",
+        "transactionId": "apple_1234567890"
+      }
+    }
+  ]
+}
+```
+
 ### 4. Wise Payout Flow
 
 **Step 1: Prepare payout**

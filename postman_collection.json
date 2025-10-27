@@ -1,0 +1,1065 @@
+{
+  "info": {
+    "name": "EdTech Webhook API",
+    "description": "Complete API test collection for subscription management, payments, and webhooks",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "1"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Stripe",
+      "item": [
+        {
+          "name": "Create Subscription",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has success field\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"Response has subscriptionId\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.subscriptionId).to.exist;",
+                  "    pm.environment.set(\"subscriptionId\", jsonData.subscriptionId);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has clientSecret\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.clientSecret).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Unique key for idempotency"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"{{user_id}}\",\n  \"planId\": \"{{stripe_plan_id}}\",\n  \"currency\": \"USD\",\n  \"metadata\": {\n    \"source\": \"postman_test\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/stripe/subscriptions",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "stripe", "subscriptions"]
+            },
+            "description": "Create a new Stripe subscription"
+          },
+          "response": []
+        },
+        {
+          "name": "Change Payment Method",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has clientSecret\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.clientSecret).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"{{user_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/stripe/change-payment-method",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "stripe", "change-payment-method"]
+            },
+            "description": "Create setup intent for changing payment method"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Subscription",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response confirms cancellation\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.message).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"immediate\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/stripe/subscriptions/{{subscriptionId}}/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "stripe", "subscriptions", "{{subscriptionId}}", "cancel"]
+            },
+            "description": "Cancel subscription at period end"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Subscription Immediately",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"immediate\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/stripe/subscriptions/{{subscriptionId}}/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "stripe", "subscriptions", "{{subscriptionId}}", "cancel"]
+            },
+            "description": "Cancel subscription immediately"
+          },
+          "response": []
+        }
+      ],
+      "description": "Stripe payment endpoints"
+    },
+    {
+      "name": "IAP (In-App Purchases)",
+      "item": [
+        {
+          "name": "Validate Apple Receipt",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Receipt is valid\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.valid).to.be.true;",
+                  "    pm.expect(jsonData.transactionId).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"{{user_id}}\",\n  \"platform\": \"ios\",\n  \"receipt\": \"{{apple_receipt}}\",\n  \"productId\": \"com.edtech.group.premium\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/iap/validate",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "iap", "validate"]
+            },
+            "description": "Validate Apple App Store receipt"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate Google Play Receipt",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Receipt is valid\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.valid).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"{{user_id}}\",\n  \"platform\": \"android\",\n  \"receipt\": \"{{google_receipt}}\",\n  \"productId\": \"com.edtech.group.premium\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/iap/validate",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "iap", "validate"]
+            },
+            "description": "Validate Google Play receipt"
+          },
+          "response": []
+        },
+        {
+          "name": "Get IAP Subscriptions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has subscriptions array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.subscriptions).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/iap/subscriptions/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "iap", "subscriptions", "{{user_id}}"]
+            },
+            "description": "Get user's IAP subscriptions"
+          },
+          "response": []
+        }
+      ],
+      "description": "In-App Purchase validation endpoints"
+    },
+    {
+      "name": "Payouts (Wise)",
+      "item": [
+        {
+          "name": "Prepare Payout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Payout created\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.payoutId).to.exist;",
+                  "    pm.environment.set(\"payoutId\", jsonData.payoutId);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tutorId\": \"{{tutor_id}}\",\n  \"amount\": 250.00,\n  \"currency\": \"USD\",\n  \"beneficiaryDetails\": {\n    \"accountNumber\": \"1234567890\",\n    \"bankCode\": \"BANK123\",\n    \"accountHolderName\": \"John Doe\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/payouts/prepare",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "payouts", "prepare"]
+            },
+            "description": "Prepare a payout for a tutor (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Payout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Payout approved\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.status).to.equal('processing');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payoutId\": \"{{payoutId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/payouts/approve",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "payouts", "approve"]
+            },
+            "description": "Approve and execute a payout (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payout Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Payout details returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.payout).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/payouts/{{payoutId}}",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "payouts", "{{payoutId}}"]
+            },
+            "description": "Get payout status by ID"
+          },
+          "response": []
+        }
+      ],
+      "description": "Tutor payout management (Wise)"
+    },
+    {
+      "name": "Admin & User Management",
+      "item": [
+        {
+          "name": "Get Subscription by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Subscription details returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.subscription).to.exist;",
+                  "    pm.expect(jsonData.subscription.id).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/{{subscriptionId}}",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "{{subscriptionId}}"]
+            },
+            "description": "Get subscription details by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Subscription (Generic)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"immediate\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/{{subscriptionId}}/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "{{subscriptionId}}", "cancel"]
+            },
+            "description": "Cancel any subscription by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Ledger Entries",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Ledger entries returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.entries).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/ledger?uid={{user_id}}&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "ledger"],
+              "query": [
+                {
+                  "key": "uid",
+                  "value": "{{user_id}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Get ledger entries for a user"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Entitlements",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Entitlements returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.entitlements).to.exist;",
+                  "    pm.expect(jsonData.entitlements.features).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/entitlements/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "entitlements", "{{user_id}}"]
+            },
+            "description": "Get user entitlements (optional auth)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Subscriptions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Subscriptions returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.subscriptions).to.be.an('array');",
+                  "    pm.expect(jsonData.count).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/users/{{user_id}}/subscriptions",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "users", "{{user_id}}", "subscriptions"]
+            },
+            "description": "Get all subscriptions for a user"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Invoices",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Invoices returned\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.invoices).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/users/{{user_id}}/invoices?limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "users", "{{user_id}}", "invoices"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get user invoices"
+          },
+          "response": []
+        }
+      ],
+      "description": "Admin and user management endpoints"
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Stripe Webhook - Payment Success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 or 400\", function () {",
+                  "    pm.expect([200, 400]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test(\"Webhook received\", function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.received).to.be.true;",
+                  "    });",
+                  "    ",
+                  "    pm.test(\"Has eventId\", function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.eventId).to.exist;",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "stripe-signature",
+                "value": "{{stripe_webhook_signature}}",
+                "description": "Webhook signature from Stripe"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"evt_{{$randomUUID}}\",\n  \"type\": \"payment_intent.succeeded\",\n  \"data\": {\n    \"object\": {\n      \"id\": \"pi_{{$randomAlphaNumeric}}\",\n      \"amount\": 999,\n      \"currency\": \"usd\",\n      \"status\": \"succeeded\",\n      \"metadata\": {\n        \"uid\": \"{{user_id}}\"\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/stripe",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "stripe"]
+            },
+            "description": "Simulate Stripe payment success webhook"
+          },
+          "response": []
+        },
+        {
+          "name": "Stripe Webhook - Subscription Created",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 or 400\", function () {",
+                  "    pm.expect([200, 400]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test(\"Webhook received\", function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.received).to.be.true;",
+                  "    });",
+                  "    ",
+                  "    pm.test(\"Has eventId\", function () {",
+                  "        var jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.eventId).to.exist;",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "stripe-signature",
+                "value": "{{stripe_webhook_signature}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"evt_{{$randomUUID}}\",\n  \"type\": \"customer.subscription.created\",\n  \"data\": {\n    \"object\": {\n      \"id\": \"sub_{{$randomAlphaNumeric}}\",\n      \"status\": \"active\",\n      \"customer\": \"cus_{{$randomAlphaNumeric}}\",\n      \"items\": {\n        \"data\": [\n          {\n            \"price\": {\n              \"id\": \"{{stripe_plan_id}}\"\n            }\n          }\n        ]\n      },\n      \"metadata\": {\n        \"uid\": \"{{user_id}}\"\n      }\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/stripe",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "stripe"]
+            },
+            "description": "Simulate Stripe subscription created webhook"
+          },
+          "response": []
+        },
+        {
+          "name": "Apple App Store Webhook (Renewal)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Webhook received\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.received).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"Has eventId\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.eventId).to.exist;",
+                  "});",
+                  "",
+                  "pm.test(\"Event type is DID_RENEW\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.eventType).to.equal('DID_RENEW');",
+                  "});",
+                  "",
+                  "pm.test(\"Webhook processed successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.processed).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notification_type\": \"DID_RENEW\",\n  \"transaction_id\": \"apple_{{$timestamp}}\",\n  \"original_transaction_id\": \"apple_orig_{{$timestamp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/appstore",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "appstore"]
+            },
+            "description": "Simulate Apple App Store webhook - renewal"
+          },
+          "response": []
+        },
+        {
+          "name": "Apple App Store Webhook (Refund)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Webhook received\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.received).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"Event type is REFUND\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.eventType).to.equal('REFUND');",
+                  "});",
+                  "",
+                  "pm.test(\"Webhook processed successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.processed).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notification_type\": \"REFUND\",\n  \"original_transaction_id\": \"apple_orig_{{$timestamp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/appstore",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "appstore"]
+            },
+            "description": "Simulate Apple App Store webhook - refund"
+          },
+          "response": []
+        },
+        {
+          "name": "Google Play Webhook (Renewal)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Webhook received\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.received).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"Has eventId\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.eventId).to.exist;",
+                  "});",
+                  "",
+                  "pm.test(\"Event type is google_2\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.eventType).to.equal('google_2');",
+                  "});",
+                  "",
+                  "pm.test(\"Webhook processed successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.processed).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subscriptionNotification\": {\n    \"notificationType\": 2,\n    \"purchaseToken\": \"google_token_{{$timestamp}}\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/play",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "play"]
+            },
+            "description": "Simulate Google Play webhook - renewal"
+          },
+          "response": []
+        },
+        {
+          "name": "Google Play Webhook (Cancellation)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Debug: Log the response",
+                  "console.log('Response Status:', pm.response.code);",
+                  "console.log('Response Body:', pm.response.text());",
+                  "",
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Try to parse JSON and log any errors",
+                  "let jsonData;",
+                  "try {",
+                  "    jsonData = pm.response.json();",
+                  "    console.log('Parsed JSON:', JSON.stringify(jsonData, null, 2));",
+                  "} catch (e) {",
+                  "    console.error('Failed to parse JSON:', e);",
+                  "    pm.test('Response is valid JSON', function() {",
+                  "        throw new Error('Response is not valid JSON: ' + e.message);",
+                  "    });",
+                  "    return;",
+                  "}",
+                  "",
+                  "pm.test(\"Webhook received\", function () {",
+                  "    pm.expect(jsonData.received).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"Event type is google_3\", function () {",
+                  "    pm.expect(jsonData.eventType).to.equal('google_3');",
+                  "});",
+                  "",
+                  "pm.test(\"Webhook processed successfully\", function () {",
+                  "    pm.expect(jsonData.processed).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subscriptionNotification\": {\n    \"notificationType\": 3,\n    \"purchaseToken\": \"google_token_{{$timestamp}}\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/play",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "play"]
+            },
+            "description": "Simulate Google Play webhook - cancellation"
+          },
+          "response": []
+        }
+      ],
+      "description": "Webhook endpoints for payment providers"
+    },
+    {
+      "name": "Health & Monitoring",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"API is healthy\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.equal('ok');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Check API health status"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ]
+}

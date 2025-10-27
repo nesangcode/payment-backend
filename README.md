@@ -534,22 +534,63 @@ npm run test:coverage
 
 ### Manual Testing
 
-Use the Stripe CLI for webhook testing:
+#### Postman Collection
+
+Import the full Postman collection for interactive API testing:
 
 ```bash
-# Install Stripe CLI
-brew install stripe/stripe-cli/stripe
+# Files included:
+- postman_collection.json    # Complete API test collection
+- postman_environment.json   # Environment variables
+- POSTMAN_GUIDE.md          # Detailed testing guide
+```
 
-# Login
-stripe login
+**Quick Start:**
+```bash
+# 1. Install dependencies
+npm install
 
-# Forward webhooks to local server
+# 2. Configure environment
+cp .env.example .env
+# Add your Firebase serviceAccountKey.json to project root
+
+# 3. Start server
+npm run dev
+
+# 4. Test with Postman
+# Import postman_collection.json and postman_environment.json
+```
+
+**First Time Setup?** See [QUICKSTART.md](./QUICKSTART.md) for detailed walkthrough.
+
+## 📖 Documentation
+
+**📚 [DOCS_INDEX.md](./DOCS_INDEX.md)** - Complete documentation index
+
+### Quick Links
+- 🚀 [QUICKSTART.md](./QUICKSTART.md) - **Start here!** Get running in 10 minutes
+- 🔥 [FIREBASE_SETUP.md](./FIREBASE_SETUP.md) - Firebase configuration
+- 💳 [STRIPE_SETUP.md](./STRIPE_SETUP.md) - Stripe integration
+- 🧪 [POSTMAN_SETUP.md](./POSTMAN_SETUP.md) - API testing
+- 🐛 [COMMON_MISTAKES.md](./COMMON_MISTAKES.md) - Troubleshooting
+- ✅ [SETUP_COMPLETE.md](./SETUP_COMPLETE.md) - All tests passing? Read this!
+
+### Webhook Testing
+
+For real webhook testing, use the Stripe CLI:
+
+```bash
+# Install Stripe CLI: https://stripe.com/docs/stripe-cli
 stripe listen --forward-to localhost:3000/webhooks/stripe
 
 # Trigger test events
 stripe trigger payment_intent.succeeded
-stripe trigger invoice.payment_failed
+stripe trigger customer.subscription.created
 ```
+
+## ✅ All Tests Passing?
+
+See **[SETUP_COMPLETE.md](./SETUP_COMPLETE.md)** for next steps and production deployment guide.
 
 ## 💰 Tax Handling
 
